@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weighted Stack Validator</title>
+<meta name="theme-color" content="#14171C">
+<meta name="description" content="Weighted stack validator for bracket languages with unequal match ratios.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Stack Validator">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171C;
+    --panel:#1B1F27;
+    --panel-raised:#20242D;
+    --line:#2A2F3A;
+    --line-soft:#232833;
+    --text:#E8EAED;
+    --muted:#8B92A1;
+    --faint:#565D6B;
+    --push:#E0A73B;
+    --pop:#4FB8A6;
+    --error:#E0654B;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+    --disp: 'Space Grotesk', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:40px 28px 80px;
+  }
+  header{
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:24px;
+    margin-bottom:36px;
+    flex-wrap:wrap;
+    border-bottom:1px solid var(--line);
+    padding-bottom:24px;
+  }
+  h1{
+    font-family:var(--disp);
+    font-weight:600;
+    font-size:28px;
+    letter-spacing:-0.01em;
+    margin:0 0 6px;
+  }
+  header p{
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.6;
+    max-width:520px;
+    margin:0;
+  }
+  .lang-tag{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--push);
+    background:var(--panel-raised);
+    border:1px solid var(--line);
+    padding:6px 12px;
+    border-radius:4px;
+    white-space:nowrap;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:360px 1fr;
+    gap:24px;
+    align-items:start;
+  }
+  @media (max-width:880px){
+    .grid{grid-template-columns:1fr;}
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:20px;
+  }
+  .panel + .panel{margin-top:20px;}
+  .panel h2{
+    font-family:var(--disp);
+    font-size:15px;
+    font-weight:600;
+    margin:0 0 4px;
+  }
+  .panel .sub{
+    color:var(--muted);
+    font-size:12.5px;
+    margin:0 0 16px;
+    line-height:1.5;
+  }
+  .presets{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:20px;
+  }
+  .preset-btn{
+    font-family:var(--mono);
+    font-size:12px;
+    background:var(--panel-raised);
+    color:var(--text);
+    border:1px solid var(--line);
+    padding:7px 10px;
+    border-radius:5px;
+    cursor:pointer;
+    transition:border-color .15s, color .15s;
+  }
+  .preset-btn:hover{border-color:var(--faint); color:var(--push);}
+  .rule-row{
+    display:grid;
+    grid-template-columns:34px 34px 46px 46px 22px 22px;
+    gap:6px;
+    align-items:center;
+    margin-bottom:8px;
+  }
+  .rule-row input[type=text]{
+    width:100%;
+    text-align:center;
+    font-family:var(--mono);
+    font-size:14px;
+  }
+  .rule-row input[type=number]{
+    width:100%;
+    font-family:var(--mono);
+    font-size:13px;
+    text-align:center;
+  }
+  input[type=text], input[type=number], textarea{
+    background:var(--bg);
+    border:1px solid var(--line);
+    color:var(--text);
+    border-radius:5px;
+    padding:7px 6px;
+  }
+  input[type=text]:focus, input[type=number]:focus, textarea:focus{
+    outline:2px solid var(--push);
+    outline-offset:1px;
+    border-color:transparent;
+  }
+  .swatch{
+    width:16px;height:16px;border-radius:3px;margin:auto;
+  }
+  .rm-btn{
+    background:none;border:none;color:var(--faint);cursor:pointer;font-size:16px;
+    line-height:1; padding:2px;
+  }
+  .rm-btn:hover{color:var(--error);}
+  .rule-head{
+    display:grid;
+    grid-template-columns:34px 34px 46px 46px 22px 22px;
+    gap:6px;
+    font-family:var(--mono);
+    font-size:10px;
+    color:var(--faint);
+    text-transform:lowercase;
+    margin-bottom:8px;
+  }
+  .add-rule{
+    font-family:var(--mono);
+    font-size:12px;
+    background:none;
+    border:1px dashed var(--line);
+    color:var(--muted);
+    padding:8px;
+    width:100%;
+    border-radius:5px;
+    cursor:pointer;
+    margin-top:4px;
+  }
+  .add-rule:hover{border-color:var(--faint); color:var(--text);}
+  textarea{
+    width:100%;
+    font-family:var(--mono);
+    font-size:15px;
+    letter-spacing:0.02em;
+    resize:vertical;
+    min-height:52px;
+  }
+  .controls{
+    display:flex;
+    gap:8px;
+    margin-top:14px;
+    flex-wrap:wrap;
+  }
+  button.act{
+    font-family:var(--sans);
+    font-weight:600;
+    font-size:13px;
+    border-radius:6px;
+    padding:9px 14px;
+    border:1px solid var(--line);
+    background:var(--panel-raised);
+    color:var(--text);
+    cursor:pointer;
+    transition:background .15s, border-color .15s;
+  }
+  button.act:hover{border-color:var(--faint);}
+  button.act.primary{
+    background:var(--push);
+    color:#1A1406;
+    border-color:var(--push);
+  }
+  button.act.primary:hover{filter:brightness(1.08);}
+  button.act:disabled{opacity:.4; cursor:not-allowed;}
+  .rule-error{
+    color:var(--error);
+    font-family:var(--mono);
+    font-size:12px;
+    margin-top:8px;
+  }
+  /* trace panel */
+  .tape{
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px;
+    font-family:var(--mono);
+    font-size:16px;
+    margin-bottom:26px;
+    min-height:34px;
+  }
+  .tape .sym{
+    width:30px;height:30px;
+    display:flex;align-items:center;justify-content:center;
+    border-radius:5px;
+    border:1px solid var(--line);
+    color:var(--faint);
+    background:var(--panel-raised);
+  }
+  .tape .sym.done{color:var(--muted); border-color:var(--line-soft);}
+  .tape .sym.current{
+    color:var(--bg);
+    background:var(--text);
+    border-color:var(--text);
+  }
+  .tape .sym.err{
+    background:var(--error);
+    color:#1A0706;
+    border-color:var(--error);
+  }
+  .stage{
+    display:grid;
+    grid-template-columns:1fr 260px;
+    gap:20px;
+  }
+  @media (max-width:640px){ .stage{grid-template-columns:1fr;} }
+  .stack-area{
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:radial-gradient(ellipse at 50% 100%, #272c38 0%, var(--panel-raised) 65%);
+    height:360px;
+    position:relative;
+    overflow:hidden;
+    perspective:900px;
+    cursor:grab;
+    touch-action:none;
+    user-select:none;
+  }
+  .stack-area.grabbing{cursor:grabbing;}
+  .stack-area::before{
+    content:'stack';
+    position:absolute; bottom:8px; left:12px;
+    font-family:var(--mono); font-size:10px; color:var(--faint);
+  }
+  .drag-hint{
+    position:absolute; top:8px; right:12px;
+    font-family:var(--mono); font-size:10px; color:var(--faint);
+  }
+  .scene{
+    position:absolute; left:50%; top:calc(100% - 64px);
+    width:0; height:0;
+    transform-style:preserve-3d;
+  }
+  .floor3d{
+    position:absolute; left:-110px; top:-110px; width:220px; height:220px;
+    transform:rotateX(90deg);
+    border:1px solid var(--faint);
+    border-radius:8px;
+    background-color:rgba(255,255,255,.03);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size:22px 22px;
+    box-shadow:0 0 40px rgba(0,0,0,.5);
+  }
+  .cube{
+    position:absolute; left:-32px; top:0; width:64px; height:28px;
+    transform-style:preserve-3d;
+    transform:translateY(var(--y));
+    animation:drop .6s cubic-bezier(.2,.9,.3,1.3) backwards;
+  }
+  .cube.out{ animation:fly .38s ease-in forwards; }
+  .face{
+    position:absolute; left:0; top:0; width:64px; height:28px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:13px; font-weight:600;
+    color:#14171C; background:var(--c);
+    border:1px solid rgba(0,0,0,.25);
+    backface-visibility:hidden;
+  }
+  .face.front{ transform:translateZ(32px); }
+  .face.back{ transform:rotateY(180deg) translateZ(32px); filter:brightness(.7); }
+  .face.right{ transform:rotateY(90deg) translateZ(32px); filter:brightness(.82); }
+  .face.left{ transform:rotateY(-90deg) translateZ(32px); filter:brightness(.62); }
+  .face.top{ top:-18px; height:64px; transform:rotateX(90deg) translateZ(14px); filter:brightness(1.18); }
+  @keyframes drop{
+    from{ transform:translateY(calc(var(--y) - 260px)) rotateY(-200deg) rotateX(40deg) scale(.6); opacity:0; }
+    to{ transform:translateY(var(--y)) rotateY(0) rotateX(0) scale(1); opacity:1; }
+  }
+  @keyframes fly{
+    to{ transform:translateY(calc(var(--y) - 220px)) translateX(140px) rotateZ(50deg) rotateY(140deg) scale(.5); opacity:0; }
+  }
+  .stack-area.shake{ animation:shake .45s; }
+  @keyframes shake{
+    0%,100%{transform:translateX(0);} 20%{transform:translateX(-8px);} 40%{transform:translateX(7px);}
+    60%{transform:translateX(-5px);} 80%{transform:translateX(3px);}
+  }
+  .empty-note{
+    position:absolute; left:50%; bottom:22px; transform:translateX(-50%);
+    color:var(--faint); font-family:var(--mono); font-size:12px;
+    pointer-events:none;
+  }
+  .side-col{display:flex; flex-direction:column; gap:16px;}
+  .verdict{
+    border-radius:8px;
+    border:1px solid var(--line);
+    padding:16px;
+    background:var(--panel-raised);
+  }
+  .verdict .status{
+    font-family:var(--disp);
+    font-weight:700;
+    font-size:20px;
+    margin-bottom:4px;
+  }
+  .verdict .status.valid{color:var(--pop);}
+  .verdict .status.invalid{color:var(--error);}
+  .verdict .status.idle{color:var(--faint);}
+  .verdict .reason{
+    color:var(--muted);
+    font-size:12.5px;
+    line-height:1.5;
+    font-family:var(--mono);
+  }
+  .log{
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--panel-raised);
+    padding:12px 14px;
+    font-family:var(--mono);
+    font-size:12px;
+    line-height:1.9;
+    max-height:230px;
+    overflow-y:auto;
+    color:var(--muted);
+  }
+  .log div.ok{color:var(--muted);}
+  .log div.err{color:var(--error);}
+  .log div span.tag{color:var(--faint); margin-right:6px;}
+  .legend{
+    display:flex; flex-wrap:wrap; gap:10px; margin-top:10px;
+    font-family:var(--mono); font-size:11px; color:var(--muted);
+  }
+  .legend span{display:flex; align-items:center; gap:5px;}
+  .legend i{width:9px;height:9px;border-radius:2px; display:inline-block;}
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+
+  .head-right{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+  .install-btn{
+    font-family:var(--disp); font-weight:600; font-size:14px;
+    color:#1A1406; background:var(--push);
+    border:none; border-radius:7px; padding:10px 18px;
+    cursor:pointer;
+    box-shadow:0 4px 0 #94691a, 0 10px 18px rgba(0,0,0,.35);
+    transition:transform .15s ease, box-shadow .15s ease;
+    transform:perspective(500px) rotateX(0) rotateY(0);
+  }
+  .install-btn:hover{ transform:perspective(500px) translateZ(8px) rotateX(8deg) rotateY(var(--tilt,0deg)); box-shadow:0 6px 0 #94691a, 0 16px 24px rgba(0,0,0,.4); }
+  .install-btn:active{ transform:translateY(3px); box-shadow:0 1px 0 #94691a, 0 4px 8px rgba(0,0,0,.4); }
+  .install-btn:focus-visible{ outline:2px solid var(--text); outline-offset:3px; }
+  .install-btn[hidden]{display:none;}
+  .tape{perspective:500px;}
+  .tape .sym.current{
+    animation:lift .35s cubic-bezier(.2,.9,.3,1.3);
+    transform:translateZ(14px);
+    box-shadow:0 8px 16px rgba(0,0,0,.55);
+  }
+  @keyframes lift{ from{ transform:rotateX(-90deg) translateZ(0); opacity:0; } to{ transform:translateZ(14px); opacity:1; } }
+  dialog{
+    background:var(--panel); color:var(--text);
+    border:1px solid var(--line); border-radius:10px;
+    padding:24px; max-width:440px; width:calc(100% - 40px);
+  }
+  dialog::backdrop{ background:rgba(8,10,14,.7); }
+  dialog h3{ font-family:var(--disp); margin:0 0 10px; font-size:18px; }
+  dialog p, dialog li{ color:var(--muted); font-size:13px; line-height:1.6; }
+  dialog ul{ padding-left:18px; margin:10px 0; }
+  dialog .controls{ margin-top:18px; }
+  @media (prefers-reduced-motion: reduce){
+    .cube, .cube.out, .tape .sym.current, .stack-area.shake{ animation:none; }
+    .install-btn{ transition:none; }
+  }
+
+  #bg{ position:fixed; inset:0; width:100%; height:100%; z-index:0; pointer-events:none; }
+  .wrap{ position:relative; z-index:1; }
+  .panel{ background:rgba(27,31,39,.84); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  .brand{ display:flex; gap:16px; align-items:center; }
+  .logo{ display:block; width:56px; height:56px; flex-shrink:0; filter:drop-shadow(0 6px 10px rgba(0,0,0,.5)); animation:bob 5s ease-in-out infinite; }
+  .logo svg{ width:56px; height:56px; display:block; }
+  @keyframes bob{ 0%,100%{ transform:translateY(0) rotateY(0); } 50%{ transform:translateY(-4px) rotateY(12deg); } }
+  @media (prefers-reduced-motion: reduce){ .logo{ animation:none; } }
+</style>
+</head>
+<body>
+<canvas id="bg" aria-hidden="true"></canvas>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="44" height="44" aria-hidden="true">
+<defs>
+<linearGradient id="lgbg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#262C38"/><stop offset="1" stop-color="#101318"/></linearGradient>
+<radialGradient id="lgglow" cx="50%" cy="46%" r="46%"><stop offset="0" stop-color="#E0A73B" stop-opacity=".30"/><stop offset="1" stop-color="#E0A73B" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="44" height="44" aria-hidden="true" rx="112" fill="url(#lgbg)"/>
+<rect width="44" height="44" aria-hidden="true" fill="url(#lgglow)"/>
+<g transform="translate(256 256) scale(1) translate(-256 -256)"><polygon points="144,290 256,346 256,390 144,334" fill="#A87A22"/><polygon points="256,346 368,290 368,334 256,390" fill="#C99330"/><polygon points="256,234 368,290 256,346 144,290" fill="#F2C566"/><polyline points="144,290 256,346 368,290" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="2"/><polygon points="144,238 256,294 256,338 144,282" fill="#34867A"/><polygon points="256,294 368,238 368,282 256,338" fill="#42A08F"/><polygon points="256,182 368,238 256,294 144,238" fill="#72D3C1"/><polyline points="144,238 256,294 368,238" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="2"/><polygon points="144,186 256,242 256,286 144,230" fill="#A87A22"/><polygon points="256,242 368,186 368,230 256,286" fill="#C99330"/><polygon points="256,130 368,186 256,242 144,186" fill="#F2C566"/><polyline points="144,186 256,242 368,186" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="2"/></g>
+</svg></span>
+      <div>
+      <h1>Weighted Stack Validator</h1>
+      <p>A generalized pushdown automaton for bracket languages with unequal match ratios — where one opening symbol can require several closing symbols, or vice versa, instead of the usual 1:1 pairing.</p>
+      </div>
+    </div>
+    <div class="head-right">
+      <div class="lang-tag" id="lang-tag">L = { aⁿ b²ⁿ : n ≥ 0 }</div>
+      <button class="install-btn" id="install-btn" type="button">Install now</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- LEFT: config -->
+    <div>
+      <div class="panel">
+        <h2>Presets</h2>
+        <p class="sub">Load a ready-made grammar, then edit freely below.</p>
+        <div class="presets" id="presets"></div>
+
+        <h2>Grammar rules</h2>
+        <p class="sub">Each rule pairs an opening symbol with a closing symbol. <b style="color:var(--text)">Push</b> = tokens placed on the stack per opening symbol. <b style="color:var(--text)">Pop</b> = tokens removed per closing symbol — they must be contiguous and of the same type, or the string is rejected.</p>
+        <div class="rule-head"><span>open</span><span>close</span><span>push</span><span>pop</span><span></span><span></span></div>
+        <div id="rule-rows"></div>
+        <button class="add-rule" id="add-rule">+ add rule</button>
+        <div class="rule-error" id="rule-error"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Input string</h2>
+        <p class="sub">Symbols not covered by any rule are rejected. Whitespace is ignored.</p>
+        <textarea id="input-str" spellcheck="false"></textarea>
+        <div class="controls">
+          <button class="act primary" id="run-btn">Run</button>
+          <button class="act" id="step-btn">Step</button>
+          <button class="act" id="reset-btn">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: execution trace -->
+    <div class="panel">
+      <h2>Execution trace</h2>
+      <p class="sub">The tape shows the symbol under the read head; the stack shows tokens accumulated so far.</p>
+      <div class="tape" id="tape"></div>
+
+      <div class="stage">
+        <div class="stack-area" id="stack-area" aria-label="3D view of the stack. Drag to rotate.">
+          <div class="scene" id="scene"><div class="floor3d"></div></div>
+          <div class="empty-note" id="empty-note">empty</div>
+          <div class="drag-hint">drag to rotate</div>
+        </div>
+        <div class="side-col">
+          <div class="verdict">
+            <div class="status idle" id="v-status">Idle</div>
+            <div class="reason" id="v-reason">Press Step or Run to begin execution.</div>
+          </div>
+          <div class="log" id="log"></div>
+        </div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+</div>
+
+<dialog id="install-dialog">
+  <h3 id="dlg-title">Install Weighted Stack Validator</h3>
+  <p id="dlg-lead"></p>
+  <ul id="dlg-steps"></ul>
+  <div class="controls">
+    <button class="act primary" id="dl-btn" type="button">Download offline copy</button>
+    <button class="act" id="dlg-close" type="button">Close</button>
+  </div>
+</dialog>
+
+<script>
+const PALETTE = ['#E0A73B','#4FB8A6','#8C7CE0','#E06C9F','#5FA8E0','#C9C24B'];
+
+const PRESETS = [
+  {
+    label: 'aⁿb²ⁿ',
+    tag: 'L = { aⁿ b²ⁿ : n ≥ 0 }',
+    rules: [ {open:'a', close:'b', push:2, pop:1} ],
+    input: 'aaabbbbbb'
+  },
+  {
+    label: 'aⁿb³ⁿ',
+    tag: 'L = { aⁿ b³ⁿ : n ≥ 0 }',
+    rules: [ {open:'a', close:'b', push:3, pop:1} ],
+    input: 'aabbbbbb'
+  },
+  {
+    label: 'standard ()[]{}',
+    tag: 'L = Dyck₃ (1:1 nested brackets)',
+    rules: [
+      {open:'(', close:')', push:1, pop:1},
+      {open:'[', close:']', push:1, pop:1},
+      {open:'{', close:'}', push:1, pop:1},
+    ],
+    input: '([{}])'
+  },
+  {
+    label: 'nested 2:1 ratio',
+    tag: 'L = Dyck with ⟨ pushing 2, closed by two ⟩',
+    rules: [
+      {open:'(', close:')', push:1, pop:1},
+      {open:'<', close:'>', push:2, pop:1},
+    ],
+    input: '(<<>>>>)'
+  },
+  {
+    label: 'mismatched (invalid)',
+    tag: 'L = { aⁿ b²ⁿ : n ≥ 0 }',
+    rules: [ {open:'a', close:'b', push:2, pop:1} ],
+    input: 'aaabbbbb'
+  },
+];
+
+let rules = [];       // {id, open, close, push, pop, color}
+let ruleSeq = 0;
+let symbols = [];     // {ch, ruleId, kind:'open'|'close'}
+let cursor = 0;
+let stack = [];        // {ruleId}
+let phase = 'idle';    // idle | running | valid | invalid
+let reasonText = '';
+let autoTimer = null;
+
+const $ = id => document.getElementById(id);
+
+function newRule(open, close, push, pop){
+  const color = PALETTE[ruleSeq % PALETTE.length];
+  ruleSeq++;
+  return {id:'r'+ruleSeq, open, close, push, pop, color};
+}
+
+function loadPreset(p){
+  stopAuto();
+  ruleSeq = 0;
+  rules = p.rules.map(r => newRule(r.open, r.close, r.push, r.pop));
+  $('input-str').value = p.input;
+  $('lang-tag').textContent = p.tag;
+  renderRules();
+  resetExecution();
+}
+
+function renderPresets(){
+  const box = $('presets');
+  box.innerHTML = '';
+  PRESETS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'preset-btn';
+    b.textContent = p.label;
+    b.onclick = () => loadPreset(p);
+    box.appendChild(b);
+  });
+}
+
+function renderRules(){
+  const box = $('rule-rows');
+  box.innerHTML = '';
+  rules.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'rule-row';
+    row.innerHTML = `
+      <input type="text" maxlength="1" value="${r.open}" data-field="open" data-id="${r.id}">
+      <input type="text" maxlength="1" value="${r.close}" data-field="close" data-id="${r.id}">
+      <input type="number" min="1" max="9" value="${r.push}" data-field="push" data-id="${r.id}">
+      <input type="number" min="1" max="9" value="${r.pop}" data-field="pop" data-id="${r.id}">
+      <div class="swatch" style="background:${r.color}"></div>
+      <button class="rm-btn" data-rm="${r.id}" title="remove rule">&times;</button>
+    `;
+    box.appendChild(row);
+  });
+  box.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', onRuleFieldChange);
+  });
+  box.querySelectorAll('[data-rm]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      rules = rules.filter(r => r.id !== btn.dataset.rm);
+      renderRules();
+      resetExecution();
+    });
+  });
+  renderLegend();
+}
+
+function onRuleFieldChange(e){
+  const id = e.target.dataset.id;
+  const field = e.target.dataset.field;
+  const rule = rules.find(r => r.id === id);
+  if(!rule) return;
+  if(field === 'open' || field === 'close'){
+    rule[field] = e.target.value.trim() || rule[field];
+    e.target.value = rule[field];
+  } else {
+    let v = parseInt(e.target.value, 10);
+    if(isNaN(v) || v < 1) v = 1;
+    rule[field] = v;
+    e.target.value = v;
+  }
+  renderLegend();
+  resetExecution();
+}
+
+function renderLegend(){
+  const box = $('legend');
+  box.innerHTML = '';
+  rules.forEach(r => {
+    const s = document.createElement('span');
+    s.innerHTML = `<i style="background:${r.color}"></i>${r.open} pushes ${r.push} &middot; ${r.close} pops ${r.pop}`;
+    box.appendChild(s);
+  });
+}
+
+function validateRuleSet(){
+  const opens = rules.map(r=>r.open), closes = rules.map(r=>r.close);
+  const dup = arr => new Set(arr).size !== arr.length;
+  if(rules.length === 0) return 'Define at least one rule.';
+  if(rules.some(r => !r.open || !r.close)) return 'Every rule needs an open and close symbol.';
+  if(dup(opens)) return 'Opening symbols must be unique across rules.';
+  if(dup(closes)) return 'Closing symbols must be unique across rules.';
+  return null;
+}
+
+// ---- execution ----
+
+function resetExecution(){
+  stopAuto();
+  const err = validateRuleSet();
+  $('rule-error').textContent = err || '';
+  const raw = $('input-str').value;
+  symbols = [];
+  cursor = 0;
+  stack = [];
+  phase = 'idle';
+  reasonText = 'Press Step or Run to begin execution.';
+
+  if(!err){
+    for(const ch of raw){
+      if(/\s/.test(ch)) continue;
+      const openRule = rules.find(r => r.open === ch);
+      const closeRule = rules.find(r => r.close === ch);
+      if(openRule) symbols.push({ch, ruleId: openRule.id, kind:'open'});
+      else if(closeRule) symbols.push({ch, ruleId: closeRule.id, kind:'close'});
+      else symbols.push({ch, ruleId: null, kind:'unknown'});
+    }
+  }
+  clearCubes();
+  lastPhase = 'idle';
+  $('log').innerHTML = '';
+  renderAll();
+}
+
+function ruleById(id){ return rules.find(r => r.id === id); }
+
+function stepOnce(){
+  if(phase === 'valid' || phase === 'invalid') return false;
+  if(cursor >= symbols.length){
+    phase = stack.length === 0 ? 'valid' : 'invalid';
+    reasonText = phase === 'valid'
+      ? 'Input fully consumed and the stack is empty. String accepted.'
+      : `Input fully consumed but ${stack.length} token(s) remain on the stack — unclosed symbol(s). String rejected.`;
+    logLine(phase === 'valid' ? 'ok' : 'err', phase === 'valid' ? '✓ accept — stack empty' : `✗ reject — ${stack.length} token(s) left open`);
+    renderAll();
+    return false;
+  }
+
+  const sym = symbols[cursor];
+
+  if(sym.kind === 'unknown'){
+    phase = 'invalid';
+    reasonText = `Symbol "${sym.ch}" at position ${cursor+1} matches no rule. String rejected.`;
+    logLine('err', `✗ unrecognized symbol "${sym.ch}"`);
+    renderAll();
+    return false;
+  }
+
+  const rule = ruleById(sym.ruleId);
+
+  if(sym.kind === 'open'){
+    for(let i=0;i<rule.push;i++) stack.push({ruleId: rule.id});
+    logLine('ok', `push ${rule.push} × [${rule.open}]`);
+    cursor++;
+  } else {
+    if(stack.length < rule.pop){
+      phase = 'invalid';
+      reasonText = `At position ${cursor+1}, "${sym.ch}" needs to pop ${rule.pop} token(s) but only ${stack.length} remain. String rejected.`;
+      logLine('err', `✗ underflow — needed ${rule.pop} × [${rule.close}], stack had ${stack.length}`);
+      renderAll();
+      return false;
+    }
+    const top = stack.slice(stack.length - rule.pop);
+    const mismatch = top.some(t => t.ruleId !== rule.id);
+    if(mismatch){
+      const badRule = ruleById(top.find(t => t.ruleId !== rule.id).ruleId);
+      phase = 'invalid';
+      reasonText = `At position ${cursor+1}, "${sym.ch}" expected token(s) of type [${rule.open}/${rule.close}] but found [${badRule.open}/${badRule.close}] on top of stack. String rejected.`;
+      logLine('err', `✗ type mismatch — expected [${rule.open}], found [${badRule.open}]`);
+      renderAll();
+      return false;
+    }
+    stack.length -= rule.pop;
+    logLine('ok', `pop ${rule.pop} × [${rule.close}] ✓`);
+    cursor++;
+  }
+
+  phase = 'running';
+  reasonText = 'Executing…';
+  renderAll();
+  return true;
+}
+
+function logLine(cls, text){
+  const line = document.createElement('div');
+  line.className = cls;
+  line.innerHTML = `<span class="tag">${String(cursor+1).padStart(2,'0')}</span>${text}`;
+  const log = $('log');
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function stopAuto(){
+  if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
+  $('run-btn').textContent = 'Run';
+}
+
+function runAuto(){
+  if(autoTimer){ stopAuto(); return; }
+  if(phase === 'valid' || phase === 'invalid') resetExecution();
+  $('run-btn').textContent = 'Pause';
+  autoTimer = setInterval(() => {
+    const cont = stepOnce();
+    if(!cont) stopAuto();
+  }, 260);
+}
+
+// ---- render ----
+
+function renderAll(){
+  renderTape();
+  renderStack();
+  renderVerdict();
+  phaseEffects();
+}
+
+function renderTape(){
+  const box = $('tape');
+  box.innerHTML = '';
+  symbols.forEach((s, i) => {
+    const el = document.createElement('div');
+    let cls = 'sym';
+    if(phase === 'invalid' && i === Math.min(cursor, symbols.length-1) ) cls += ' err';
+    else if(i < cursor) cls += ' done';
+    else if(i === cursor && phase !== 'invalid') cls += ' current';
+    el.className = cls;
+    el.textContent = s.ch;
+    box.appendChild(el);
+  });
+  if(symbols.length === 0){
+    box.innerHTML = '<span style="color:var(--faint); font-family:var(--mono); font-size:12px;">no input</span>';
+  }
+}
+
+function renderStack(){
+  const scene = $('scene');
+  let k = 0;
+  while(k < cubes.length && k < stack.length && cubes[k].rid === stack[k].ruleId) k++;
+  const removed = cubes.splice(k);
+  removed.forEach((c, i) => {
+    c.el.style.animationDelay = ((removed.length - 1 - i) * 60) + 'ms';
+    c.el.classList.add('out');
+    setTimeout(() => c.el.remove(), 420 + removed.length * 60);
+  });
+  for(let i = k; i < stack.length; i++){
+    const rule = ruleById(stack[i].ruleId);
+    const el = document.createElement('div');
+    el.className = 'cube';
+    el.style.setProperty('--y', (-(i + 1) * 32) + 'px');
+    el.style.setProperty('--c', rule.color);
+    el.style.animationDelay = ((i - k) * 70) + 'ms';
+    ['front','back','left','right','top'].forEach(f => {
+      const face = document.createElement('div');
+      face.className = 'face ' + f;
+      if(f !== 'top') face.textContent = rule.open;
+      el.appendChild(face);
+    });
+    scene.appendChild(el);
+    cubes.push({el, rid: rule.id});
+  }
+  sceneScale = Math.min(1, 250 / Math.max(1, stack.length * 32));
+  $('empty-note').style.display = stack.length === 0 ? 'block' : 'none';
+}
+
+function clearCubes(){
+  cubes.forEach(c => c.el.remove());
+  cubes = [];
+  document.querySelectorAll('#scene .cube').forEach(e => e.remove());
+}
+
+function phaseEffects(){
+  if(phase === lastPhase) return;
+  lastPhase = phase;
+  const area = $('stack-area');
+  if(phase === 'valid' && !reduceMotion) vel = 5;
+  if(phase === 'invalid' && !reduceMotion){
+    area.classList.remove('shake'); void area.offsetWidth; area.classList.add('shake');
+  }
+}
+
+function renderVerdict(){
+  const st = $('v-status');
+  const rs = $('v-reason');
+  st.className = 'status ' + (phase === 'valid' ? 'valid' : phase === 'invalid' ? 'invalid' : phase === 'running' ? '' : 'idle');
+  st.textContent = phase === 'valid' ? 'Accepted' : phase === 'invalid' ? 'Rejected' : phase === 'running' ? 'Running…' : 'Idle';
+  rs.textContent = reasonText;
+}
+
+// ---- 3D scene ----
+let cubes = [];
+let lastPhase = 'idle';
+let sceneScale = 1;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const baseVel = reduceMotion ? 0 : 0.18;
+let rx = -22, ry = -30, vel = baseVel, dragging = false, lastX = 0, lastY = 0;
+
+(function init3D(){
+  const area = $('stack-area'), scene = $('scene');
+  area.addEventListener('pointerdown', e => {
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    area.classList.add('grabbing'); area.setPointerCapture(e.pointerId);
+  });
+  area.addEventListener('pointermove', e => {
+    if(!dragging) return;
+    ry += (e.clientX - lastX) * 0.5;
+    rx = Math.max(-70, Math.min(-5, rx - (e.clientY - lastY) * 0.3));
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  const end = () => { dragging = false; area.classList.remove('grabbing'); };
+  area.addEventListener('pointerup', end);
+  area.addEventListener('pointercancel', end);
+  (function loop(){
+    if(!dragging){ ry += vel; vel += (baseVel - vel) * 0.03; }
+    scene.style.transform = `scale(${sceneScale}) rotateX(${rx}deg) rotateY(${ry}deg)`;
+    requestAnimationFrame(loop);
+  })();
+})();
+
+// ---- install ----
+(function initInstall(){
+  const btn = $('install-btn'), dlg = $('install-dialog');
+  let deferred = null;
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if(standalone) btn.hidden = true;
+
+  // service worker (needed for offline use + installability)
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferred = e; });
+  addEventListener('appinstalled', () => { btn.hidden = true; deferred = null; });
+
+  function openGuide(){
+    const ua = navigator.userAgent;
+    const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const local = location.protocol === 'file:' || !window.isSecureContext;
+    const steps = [];
+    let lead;
+    if(local){
+      lead = 'This copy is opened as a local file, and browsers only allow one-click install from a web address (HTTPS). Two ways forward:';
+      steps.push('<b>Host it once</b> — upload the app folder to Netlify Drop, GitHub Pages or Vercel, open that link, and press Install now. The app then installs with its logo and appears on your desktop / start menu.');
+      steps.push('<b>Or use this offline copy</b> — download it below and open it anytime, no install needed.');
+    } else if(ios){
+      lead = 'On iPhone and iPad, installing is done from the Share menu:';
+      steps.push('Tap the <b>Share</b> button in Safari.');
+      steps.push('Choose <b>Add to Home Screen</b>, then <b>Add</b>.');
+    } else {
+      lead = 'Your browser did not offer the install prompt. This usually means the app is already installed, or the browser does not support installing web apps (Firefox desktop does not).';
+      steps.push('<b>Chrome / Edge:</b> click the install icon at the right of the address bar, or open the menu and choose “Install Weighted Stack Validator”.');
+      steps.push('<b>Desktop shortcut:</b> in Chrome, menu → Cast, save and share → <b>Create shortcut</b> (tick “Open as window”).');
+    }
+    $('dlg-lead').textContent = lead;
+    $('dlg-steps').innerHTML = steps.map(t => '<li>' + t + '</li>').join('');
+    dlg.showModal();
+  }
+
+  btn.addEventListener('click', async () => {
+    if(deferred){
+      deferred.prompt();
+      const choice = await deferred.userChoice;
+      deferred = null;
+      if(choice.outcome === 'accepted') btn.hidden = true;
+    } else {
+      openGuide();
+    }
+  });
+  btn.addEventListener('pointermove', e => {
+    const r = btn.getBoundingClientRect();
+    btn.style.setProperty('--tilt', (((e.clientX - r.left) / r.width - 0.5) * 16) + 'deg');
+  });
+  $('dlg-close').addEventListener('click', () => dlg.close());
+  $('dl-btn').addEventListener('click', () => {
+    const clone = document.documentElement.cloneNode(true);
+    clone.querySelectorAll('.cube, link[rel=manifest]').forEach(n => n.remove());
+    const d = clone.querySelector('dialog'); if(d) d.removeAttribute('open');
+    const blob = new Blob(['<!DOCTYPE html>\n' + clone.outerHTML], {type:'text/html'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'stack-validator.html';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+})();
+
+// ---- animated background ----
+(function initBackground(){
+  const cv = $('bg'), ctx = cv.getContext('2d');
+  const COLORS = ['224,167,59','79,184,166','140,124,224','224,108,159'];
+  const GLYPHS = ['a','b','(',')','[',']','<','>','{','}','2:1'];
+  let W, H, dpr, cubes3, glyphs, t = 0;
+
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  function seed(){
+    const n = Math.max(10, Math.min(26, Math.round(W / 60)));
+    cubes3 = Array.from({length:n}, () => ({
+      x: Math.random()*W, y: Math.random()*H,
+      z: 0.35 + Math.random()*0.65,
+      size: 14 + Math.random()*26,
+      rx: Math.random()*6.28, ry: Math.random()*6.28,
+      vx: (Math.random()-.5)*0.004, vy: (Math.random()-.5)*0.006,
+      drift: 0.15 + Math.random()*0.35,
+      col: COLORS[(Math.random()*COLORS.length)|0]
+    }));
+    glyphs = Array.from({length:Math.round(n*0.9)}, () => ({
+      x: Math.random()*W, y: Math.random()*H,
+      s: 14 + Math.random()*22, v: 0.15 + Math.random()*0.35,
+      g: GLYPHS[(Math.random()*GLYPHS.length)|0],
+      col: COLORS[(Math.random()*COLORS.length)|0], ph: Math.random()*6.28
+    }));
+  }
+  const V = [[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]];
+  const E = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+
+  function drawGrid(){
+    const hor = H*0.64, vx = W/2;
+    ctx.lineWidth = 1;
+    for(let i=-24;i<=24;i++){
+      const g = ctx.createLinearGradient(0,hor,0,H);
+      g.addColorStop(0,'rgba(224,167,59,0)'); g.addColorStop(1,'rgba(224,167,59,.16)');
+      ctx.strokeStyle = g;
+      ctx.beginPath(); ctx.moveTo(vx + i*W*0.012, hor); ctx.lineTo(vx + i*W*0.09, H); ctx.stroke();
+    }
+    const N = 12, off = (t*0.00018) % 1;
+    for(let k=0;k<N;k++){
+      const f = ((k + off*1) / N) % 1;
+      const y = hor + (H-hor) * Math.pow(f, 2.2);
+      ctx.strokeStyle = `rgba(79,184,166,${(f*0.22).toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    }
+  }
+  function drawCube(c){
+    const cx = Math.cos(c.rx), sx = Math.sin(c.rx), cy = Math.cos(c.ry), sy = Math.sin(c.ry);
+    const pts = V.map(([x,y,z]) => {
+      let y1 = y*cx - z*sx, z1 = y*sx + z*cx;
+      let x2 = x*cy + z1*sy, z2 = -x*sy + z1*cy;
+      const p = 3.2/(3.2 + z2*0.9);
+      return [c.x + x2*c.size*c.z*p, c.y + y1*c.size*c.z*p];
+    });
+    ctx.strokeStyle = `rgba(${c.col},${(0.10 + c.z*0.22).toFixed(3)})`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    E.forEach(([a,b]) => { ctx.moveTo(pts[a][0],pts[a][1]); ctx.lineTo(pts[b][0],pts[b][1]); });
+    ctx.stroke();
+  }
+  function frame(animate){
+    ctx.clearRect(0,0,W,H);
+    drawGrid();
+    cubes3.forEach(c => {
+      if(animate){
+        c.rx += c.vy; c.ry += c.vx + 0.003;
+        c.y -= c.drift*c.z; c.x += Math.sin((t*0.0004) + c.size)*0.15;
+        if(c.y < -60){ c.y = H + 60; c.x = Math.random()*W; }
+      }
+      drawCube(c);
+    });
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    glyphs.forEach(g => {
+      if(animate){ g.y -= g.v; if(g.y < -30){ g.y = H + 30; g.x = Math.random()*W; } }
+      const a = 0.05 + 0.05*Math.sin(t*0.001 + g.ph);
+      ctx.fillStyle = `rgba(${g.col},${a.toFixed(3)})`;
+      ctx.font = `${g.s}px "JetBrains Mono", monospace`;
+      ctx.fillText(g.g, g.x + Math.sin(t*0.0006 + g.ph)*10, g.y);
+    });
+  }
+  resize(); seed();
+  addEventListener('resize', () => { resize(); seed(); if(reduceMotion) frame(false); });
+  if(reduceMotion){ frame(false); return; }
+  (function loop(ts){ t = ts; frame(true); requestAnimationFrame(loop); })(0);
+})();
+
+// ---- wire up ----
+
+$('add-rule').addEventListener('click', () => {
+  rules.push(newRule('', '', 1, 1));
+  renderRules();
+  resetExecution();
+});
+$('step-btn').addEventListener('click', () => { stopAuto(); stepOnce(); });
+$('run-btn').addEventListener('click', runAuto);
+$('reset-btn').addEventListener('click', resetExecution);
+$('input-str').addEventListener('input', resetExecution);
+
+renderPresets();
+loadPreset(PRESETS[0]);
+</script>
+</body>
+</html>
